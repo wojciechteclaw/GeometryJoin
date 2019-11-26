@@ -1,0 +1,85 @@
+{
+  "Uuid": "de11497f-9956-431f-87fd-1054d7834923",
+  "IsCustomNode": false,
+  "Description": null,
+  "Name": "SwitchJoinOrderMapped",
+  "ElementResolver": {
+    "ResolutionMap": {}
+  },
+  "Inputs": [],
+  "Outputs": [],
+  "Nodes": [
+    {
+      "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+      "NodeType": "PythonScriptNode",
+      "Code": "import clr\r\nimport System\r\nimport operator\r\nclr.AddReference('ProtoGeometry')\r\nfrom Autodesk.DesignScript.Geometry import *\r\n\r\n# Import DocumentManager and TransactionManager\r\nclr.AddReference(\"RevitServices\")\r\nimport RevitServices\r\nfrom RevitServices.Persistence import DocumentManager\r\nfrom RevitServices.Transactions import TransactionManager\r\n\r\nfrom System.Collections.Generic import *\r\n\r\n# Import RevitAPI\r\nclr.AddReference(\"RevitAPI\")\r\nimport Autodesk\r\nimport Autodesk.Revit.DB as db\r\n\r\nmappingDictionary = {\r\n\"Walls\" : (\"Floors\", \"Structural Columns\"),\r\n\"Floors\" : (\"Structural Framing\"),\r\n\"Structural Framing\" : (\"Walls\"),\r\n\"Structural Columns\" : (\"Structural Framing\", \"Floors\", \"Structural Foundations\"),\r\n\"Structural Foundations\" : (\"Floors\", \"Walls\")\r\n}\r\n\r\ndef createMultiCategoryFilter():\r\n    listOfCategories = list()\r\n    listOfCategories.append(db.BuiltInCategory.OST_Floors)\r\n    listOfCategories.append(db.BuiltInCategory.OST_StructuralColumns)\r\n    listOfCategories.append(db.BuiltInCategory.OST_StructuralFraming)\r\n    listOfCategories.append(db.BuiltInCategory.OST_StructuralFoundation)\r\n    listOfCategories.append(db.BuiltInCategory.OST_Walls)\r\n    iCollectionOfCategoriesForMultiCategoryFIlter = List[db.BuiltInCategory](listOfCategories)\r\n    multiCategoryFilter = db.ElementMulticategoryFilter(iCollectionOfCategoriesForMultiCategoryFIlter)\r\n    return multiCategoryFilter\r\n\r\ndef getAllModelElements(doc):\r\n    multiCategoryFilter = createMultiCategoryFilter()\r\n    allIdsOfModelElements = db.FilteredElementCollector(doc).WherePasses(multiCategoryFilter).WhereElementIsNotElementType().ToElementIds()\r\n    allElementsOfModel = map(lambda x: doc.GetElement(x), allIdsOfModelElements)\r\n    return allElementsOfModel\r\n\r\n# Mape piszemy w schemacie: elementy jakiej kategori mają być nadrzędne nad jakimi kategoriami\r\ndef createMappingDictionary():\r\n    mapType = {\r\n    \"Walls\" : (\"Floors\", \"Structural Columns\"),\r\n    \"Floors\" : (\"Strcutral Framing\", \"Structural Columns\"),\r\n    \"Structural Framing\" : (\"Walls\"),\r\n    \"Structural Columns\" : (\"Structural Framing\", \"Floors\", \"Structural Foundations\"),\r\n    \"Structural Foundations\" : (\"Floors\", \"Walls\")\r\n    }\r\n    return mapType\r\n\r\ndef properSwitchOfElements(revitElement, joinedElement, surrenderElementTypes, doc):\r\n    joinedElementCategoryName = joinedElement.Category.Name\r\n    if joinedElementCategoryName in surrenderElementTypes:\r\n        if db.JoinGeometryUtils.IsCuttingElementInJoin(doc, revitElement, joinedElement):\r\n            try:\r\n                db.JoinGeometryUtils.SwitchJoinOrder(doc, revitElement, joinedElement)\r\n            except:\r\n                pass\r\n    else:\r\n        if not db.JoinGeometryUtils.IsCuttingElementInJoin(doc, revitElement, joinedElement):\r\n            try:\r\n                db.JoinGeometryUtils.SwitchJoinOrder(doc, revitElement, joinedElement)\r\n            except:\r\n                pass\r\n\r\n\r\ndef manageJoinedElements(revitElement, doc):\r\n    joinedElementIds = db.JoinGeometryUtils.GetJoinedElements(doc, revitElement)\r\n    mappingDictionary = createMappingDictionary()\r\n    revitElementCategoryName = revitElement.Category.Name\r\n    surrenderElementTypes = mappingDictionary[revitElementCategoryName]\r\n    for joinedId in joinedElementIds:\r\n        joinedElement = doc.GetElement(joinedId)\r\n        joinedElementCategoryName = joinedElement.Category.Name\r\n        properSwitchOfElements(revitElement, joinedElement, surrenderElementTypes, doc)\r\n        \r\n\r\ndef main():\r\n    doc = DocumentManager.Instance.CurrentDBDocument\r\n    allModelElements = getAllModelElements(doc)\r\n    lst = list()\r\n    TransactionManager.Instance.EnsureInTransaction(doc)\r\n    for revitElement in allModelElements:\r\n        lst.append(manageJoinedElements(revitElement, doc))\r\n    TransactionManager.Instance.TransactionTaskDone()\r\n    return allModelElements\r\nOUT = main()",
+      "VariableInputPorts": true,
+      "Id": "0de6f1d4be51463b8680615647f6de5e",
+      "Inputs": [
+        {
+          "Id": "344771d500044928a5cf9cc6b89c2744",
+          "Name": "IN[0]",
+          "Description": "Input #0",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "672822bd0bda485092e1972dfe44c8a6",
+          "Name": "OUT",
+          "Description": "Result of the python script",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Runs an embedded IronPython script."
+    }
+  ],
+  "Connectors": [],
+  "Dependencies": [],
+  "Bindings": [],
+  "View": {
+    "Dynamo": {
+      "ScaleFactor": 1.0,
+      "HasRunWithoutCrash": true,
+      "IsVisibleInDynamoLibrary": true,
+      "Version": "2.0.3.8810",
+      "RunType": "Manual",
+      "RunPeriod": "1000"
+    },
+    "Camera": {
+      "Name": "Background Preview",
+      "EyeX": -17.0,
+      "EyeY": 24.0,
+      "EyeZ": 50.0,
+      "LookX": 12.0,
+      "LookY": -13.0,
+      "LookZ": -58.0,
+      "UpX": 0.0,
+      "UpY": 1.0,
+      "UpZ": 0.0
+    },
+    "NodeViews": [
+      {
+        "Id": "0de6f1d4be51463b8680615647f6de5e",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Name": "Python Script",
+        "ShowGeometry": true,
+        "Excluded": false,
+        "X": 334.79627671479955,
+        "Y": 284.0
+      }
+    ],
+    "Annotations": [],
+    "X": -218.26868671724435,
+    "Y": -106.06495837117063,
+    "Zoom": 1.255844835613146
+  }
+}
